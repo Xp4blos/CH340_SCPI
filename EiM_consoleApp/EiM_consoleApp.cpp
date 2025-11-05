@@ -9,7 +9,9 @@
 #include <fstream>
 #include <windows.h>
 #include <filesystem>
-
+#include <sstream>
+#include <string>
+#include <vector>
 using namespace std;
 
 /*******************************************************************************************/
@@ -208,59 +210,127 @@ int main()
 	writeOrder( hSerial, "VOLT1 4.773\n" );     // wys³anie testowej komendy - WYKONAJ NA POCZ¥TKU LABORATORIUM KROKOWO, ¿eby mieæ pwenoœæ, ¿e komunikacja dzia³a
 
 
-	const int  noOfCurves = 2;
-
 	
 
-
-	double     setValues[] = { 0.002, 0.005, 0.001, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1};
+	
+	std::vector<double>     set_values_inner_loop = {};
+	std::vector<double>     set_values_outer_loop = {};
 	// Wartoœci Pr¹dów do tranzystora // tablica z wartoœciami ustawianymi do pomiaru pojedynczej charakterystki
+
+
+	/********************************************************************************************/
+	/************************  Wczytywanie danych    ********************************************/
+	/********************************************************************************************/
+
+	
+	std::ifstream inFile("dane.txt");
+
+
+	if (!inFile.is_open()) { // Sprawdzamy, czy plik siê otworzy³
+		std::cerr << "B³¹d: Nie mo¿na otworzyæ pliku dane.txt" << std::endl;
+		return 1; // Zakoñcz program z b³êdem
+	}
+
+	std::string linia1;
+	std::string linia2;
+
+	// Wczytujemy pierwsz¹ liniê
+	if (std::getline(inFile, linia1)) {
+		std::stringstream ss(linia1); // Tworzymy strumieñ z linii
+		double liczba;
+		while (ss >> liczba) { // Czytamy liczby zmiennoprzecinkowe z pierwszej linii
+			set_values_inner_loop.push_back(liczba);
+		}
+	}
+	else {
+		std::cerr << "B³¹d: Nie mo¿na wczytaæ pierwszej linii." << std::endl;
+		return 1;
+	}
+
+	// Wczytujemy drug¹ liniê
+	if (std::getline(inFile, linia2)) {
+		std::stringstream ss(linia2); // Tworzymy strumieñ z linii
+		int liczba;
+		while (ss >> liczba) { // Czytamy liczby ca³kowite z drugiej linii
+			set_values_outer_loop.push_back(liczba);
+		}
+	}
+	else {
+		std::cerr << "B³¹d: Nie mo¿na wczytaæ drugiej linii." << std::endl;
+		return 1;
+	}
+	
+
+	
+	
+
 
 
 	/*double     setValues[] = { 0.00, 0.05, 0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.09, 1, 2, 3,4,5,6,7,8,9,10};*/
 	// Wartoœci Napiêæ do tranzystora // tablica z wartoœciami ustawianymi do pomiaru pojedynczej charakterystki
 
+	/*
+	int  noOfPoints = sizeof( set_values_inner_loop ) / sizeof( double );      // liczba wartoœci ustawianych
+	int noOfCurves = sizeof(set_values_outer_loop) / sizeof(double);
+	*/
+	int  noOfPoints = set_values_inner_loop.size();
+	int noOfCurves = set_values_outer_loop.size();
+	double     measValues1[ 10][ 100 ];      // tablica dwuwymiarowa do zapamiêtania pomiarów wielkoœci nr 1
+	double     measValues2[ 10 ][ 100 ];      // tablica dwuwymiarowa do zapamiêtania pomiarów wielkoœci nr 1
 
-	const int  noOfPoints = sizeof( setValues ) / sizeof( double );      // liczba wartoœci ustawianych
 
-	double     measValues[ noOfCurves ][ noOfPoints ];      // tablica dwuwymiarowa do zapamiêtania pomiarów wielkoœci nr 1
+	std::cout << std::endl << "outer_loop:" << " ";
+	for (auto i : set_values_outer_loop) {
+		std::cout << i << " ";
+	}
+
+	std::cout << std::endl << "inner_loop:" << " ";
+	for (auto i : set_values_inner_loop)
+	{
+		std::cout << i << " ";
+	}
+	std::cout << endl << endl;
+
 	std::cout << "Starting measurements" << std::endl;
 
 	char  order[ 30 ]; //miejsce przeznaczone na polecenie
 
 
-	
+	for (int j = 0; j < set_values_outer_loop.size(); j++) {
 
-		for( int i = 0; i < noOfPoints; i++ )                     // zebranie pojedynczej charakterystyki
+		for (int i = 0; i < set_values_inner_loop.size(); i++)                     // zebranie pojedynczej charakterystyki
 		{
-//		
-			sprintf_s( order, "CURR %f\n", setValues[ i ] );      
+			//		
+			sprintf_s(order, "CURR %f\n", set_values_inner_loop[i]);
 			//  ustawienie pr¹du (ustawienie wartoœci z tablicy; index = i)
 
 
 
-			sprintf_s( order, "VOLT1 %f\n", setValues[ i ] );      
+			sprintf_s(order, "VOLT1 %f\n", set_values_outer_loop[j]);
 			//  ustawienie napiêcia (ustawienie wartoœci z tablicy; index = i)
-			writeOrder( hSerial, order );                          // ustawienie wartoœci pr¹du lub napiêcia
+			writeOrder(hSerial, order);                          // ustawienie wartoœci pr¹du lub napiêcia
 			// Dostêpne VOLT1, VOLT2 i CURR
 
 
-			Sleep( 1000 );                                         // odczekanie na ustabilizowanie siê Ÿród³a
+			Sleep(1000);                                         // odczekanie na ustabilizowanie siê Ÿród³a
 			// odczyt wartoœci mierzonej nr 1 (1 - U1, 2 - U2, 3 - I)
-			double meas = getMeasValue( hSerial, 40, 0.1, "MEAS:VOLT1? (@1)\n", 0.0001 );    
-			double meas2 = getMeasValue( hSerial, 40, 0.1, "MEAS:CURR? (@3)\n", 0.0001 );    
+			double meas = getMeasValue(hSerial, 40, 0.1, "MEAS:VOLT1? (@1)\n", 0.0001);
+			double meas2 = getMeasValue(hSerial, 40, 0.1, "MEAS:CURR? (@3)\n", 0.0001);
 
-			measValues[ 0 ][ i ] = meas;
-			measValues[ 1 ][ i ] = meas2;
+			measValues1[j][i] = meas;
+			measValues2[j][i] = meas2;
 
-			std::cout<< "*************************************************" << std::endl;
-			std::cout<< "Wykonano dla I : " << setValues[i] << " mA | wynik pomiaru: " << meas << " : " << meas2 << " : " << std::endl;
-			std::cout<<"*************************************************" << std::endl;
-			
+			std::cout << "*************************************************" << std::endl;
+			std::cout << "Wykonano dla I : " << set_values_inner_loop[i] << " mA | wynik pomiaru: " << meas << " : " << meas2 << " : " << std::endl;
+			if (noOfCurves > 0) {
+				std::cout << "outer_loop: " << set_values_outer_loop[j] << " V" << std::endl;
+			}
+			std::cout << "*************************************************" << std::endl;
+
 
 		}
-	
 
+	}
 	CloseHandle( hSerial );       // zamkniêcie portu szeregowego 
 
 
@@ -273,28 +343,21 @@ int main()
 
 	std::cout << "file opened";
 
-	int  i, j = 0;
 
-	outFile << "Plik pomiarowy";       // TODO // wiersz nag³ówka z opisem co jest w pliku
-
-	for( i = 0; i < noOfPoints; i++ )         // wiersz 
+	outFile << "Plik pomiarowy" << std::endl;;       // TODO // wiersz nag³ówka z opisem co jest w pliku
+	outFile << "mes1, mes1, outer_loop_value" << endl;
+	for( int j = 0; j < set_values_outer_loop.size(); j++ )
 	{
-		outFile << separator;
-		outFile << setValues[ i ];
-	}
-	outFile << endl;
-
-	for( j = 0; j < noOfCurves; j++ )
-	{
-		outFile << " ";
-		for( i = 0; i < noOfPoints; i++ )
+		for( int i = 0; i < set_values_inner_loop.size(); i++ )
 		{
+			
+			outFile << measValues1[ j ][ i ]; //Wypisanie do pliku pomiaru nr 1
 			outFile << separator;
-			outFile << measValues[ 0 ][ i ]; //Wypisanie do pliku pomiaru nr 1
+			outFile << measValues2[ j ][i]; //Wypisanie do pliku pomiaru nr 2
 			outFile << separator;
-			outFile << measValues[ 1 ][i]; //Wypisanie do pliku pomiaru nr 2
+			outFile << set_values_outer_loop[j]; //Wypisanie do pliku pomiaru nr 2
+			outFile << endl;
 		}
-		outFile << endl;
 	}
 	outFile.close();
 
